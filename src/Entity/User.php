@@ -4,6 +4,8 @@ namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Post;
 use App\Controller\CreatePokemonController;
 use App\Repository\UserRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -14,11 +16,11 @@ use Symfony\Component\Security\Core\User\UserInterface;
 #[ApiResource(
     operations: [
         new Get(
-            name: 'users',
+            name: 'create-pokemon-controller',
             uriTemplate: '/users/me',
-            controller: CreatePokemonController::class,
-        )
-    ]
+            controller: CreatePokemonController::class
+        ),
+    ],
 )]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
