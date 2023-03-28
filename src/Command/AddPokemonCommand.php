@@ -3,27 +3,23 @@
 namespace App\Command;
 
 use App\Entity\Abilities;
+use App\Entity\Pokemon;
 use App\Entity\Types;
-use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Question\Question;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
-use Symfony\Config\Framework\HttpClientConfig;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 // the name of the command is what users type after "php bin/console"
 #[AsCommand(
-    name: 'command:create-ability-pokemon',
+    name: 'command:create-pokemon',
     description: 'Import data Pokemon Abilities in database.',
     hidden: false,
-    aliases: ['command:add-ability']
+    aliases: ['command:add-pokemon']
 )]
-class AddAbilitiesPokemonCommand extends Command
+class AddPokemonCommand extends Command
 {
     // the command description shown when running "php bin/console list"
     // protected static $defaultDescription = 'Creates a new user.';
@@ -39,29 +35,65 @@ class AddAbilitiesPokemonCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $result = $this->client->request('GET', 'https://pokeapi.co/api/v2/ability');
-
+        $result = $this->client->request('GET', 'https://pokeapi.co/api/v2/pokemon');
         $result = json_decode($result->getContent(), true);
 
         foreach ($result['results'] as $value) {
 
-            $abilitiesInDatabase = $this->em->getRepository(Abilities::class)->findAll();
+            $pokemonInDatabase = $this->em->getRepository(Pokemon::class)->findAll();
 
-            if ($abilitiesInDatabase !== []) {
-                $output->writeln('There are already Pokemon Abilities in the database');
+            if ($pokemonInDatabase !== []) {
+                $output->writeln('There are already Pokemon in the database');
                 return Command::FAILURE;
             }
 
-            $typesEntity = new Abilities();
-            $typesEntity->setName($value['name']);
-            $typesEntity->setUrl($value['url']);
+            $resultDetailsPokemon = $this->client->request('GET', 'https://pokeapi.co/api/v2/pokemon/'.$value['name'].'');
+            $resultDetailsPokemon = json_decode($resultDetailsPokemon->getContent(), true);
 
-            $output->writeln($value['name'] . ' is imported !');
-            $this->em->persist($typesEntity);
+            $name = $value['name'];
+            $url = $value['url'];
+            $height = $resultDetailsPokemon['height'];
+            $weight = $resultDetailsPokemon['weight'];
+
+            $pokemonEntity = new Pokemon();
+            $pokemonEntity->setName($name);
+            $pokemonEntity->setUrl($url);
+            $pokemonEntity->setHeight($height);
+            $pokemonEntity->setWeight($weight);
+
+            foreach ($resultDetailsPokemon['types'] as $types) {
+                $typesEntity = $this->em->getRepository(Types::class)->findOneBy(['name' => $types['type']['name']]);
+
+                if ($typesEntity === null) {
+                    $typesEntity = new Types();
+                    $typesEntity->setName($types['type']['name']);
+                    $typesEntity->setUrl($types['type']['url']);
+
+                    $output->writeln('New Type : '. $types['type']['name'] . ' is imported !');
+                    $this->em->persist($typesEntity);
+                }
+                $pokemonEntity->addType($typesEntity);
+            }
+
+            foreach ($resultDetailsPokemon['abilities'] as $abilities) {
+                $abilitiesEntity = $this->em->getRepository(Abilities::class)->findOneBy(['name' => $abilities['ability']['name']]);
+
+                if ($abilitiesEntity === null) {
+                    $abilitiesEntity = new Abilities();
+                    $abilitiesEntity->setName($abilities['ability']['name']);
+                    $abilitiesEntity->setUrl($abilities['ability']['url']);
+
+                    $output->writeln('New Ability : '. $abilities['ability']['name'] . ' is imported !');
+                    $this->em->persist($abilitiesEntity);
+                }
+
+                $pokemonEntity->addAbility($abilitiesEntity);
+            }
         }
-
+//        dd($pokemonEntity);
+        $this->em->persist($pokemonEntity);
         $this->em->flush();
-        $output->writeln('Success ! All Pokemon Abilities are imported');
+        $output->writeln('Success ! All Pokemon are imported');
         return Command::SUCCESS;
     }
 

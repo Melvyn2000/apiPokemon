@@ -2,85 +2,62 @@
 // src/Command/CreateUserCommand.php
 namespace App\Command;
 
-use App\Entity\User;
+use App\Entity\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Question\Question;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 // the name of the command is what users type after "php bin/console"
 #[AsCommand(
-    name: 'command:create-user',
-    description: 'Creates a new user.',
+    name: 'command:create-type-pokemon',
+    description: 'Import data Pokemon Type in database.',
     hidden: false,
-    aliases: ['command:add-user']
+    aliases: ['command:add-type']
 )]
-class CreateUserCommand extends Command
+class AddTypePokemonCommand extends Command
 {
     // the command description shown when running "php bin/console list"
     // protected static $defaultDescription = 'Creates a new user.';
     private EntityManagerInterface $em;
-    private UserPasswordHasherInterface $hasher;
+    private HttpClientInterface $client;
 
-    public function __construct(EntityManagerInterface $entityManager, UserPasswordHasherInterface $hasher)
+    public function __construct(EntityManagerInterface $entityManager, HttpClientInterface $client)
     {
         $this->em = $entityManager;
-        $this->hasher = $hasher;
-
+        $this->client = $client;
         parent::__construct();
     }
 
-//    protected function configure(): void
-//    {
-//        // the command help shown when running the command with the "--help" option
-//        $this->addArgument('email', $this->requireEmail ? InputArgument::REQUIRED : InputArgument::OPTIONAL, 'User email');
-//    }
-
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $helper = $this->getHelper('question');
-        $questionLogin = new Question('username ?');
-        $questionPassword = new Question('password ?');
-        $questionPassword->setHidden(true);
-        $questionPassword->setHiddenFallback(false);
+        $result = $this->client->request('GET', 'https://pokeapi.co/api/v2/type');
 
-//        $questionfirstname = new Question('firstname ?');
-//        $questionlastname = new Question('lastname ?');
+        $result = json_decode($result->getContent(), true);
 
-        $login = $helper->ask($input, $output, $questionLogin);
-        $password = $helper->ask($input, $output, $questionPassword);
-//        $firstname = $helper->ask($input, $output, $questionfirstname);
-//        $lastname = $helper->ask($input, $output, $questionlastname);
+        foreach ($result['results'] as $value) {
 
-        $output->writeln('Username: ' . $login);
-        $output->writeln('Password: ' . $password);
-//        $output->writeln('Firstname:' . $firstname);
-//        $output->writeln('Lastname: ' . $lastname);
+            $typesInDatabase = $this->em->getRepository(Types::class)->findAll();
 
-        $users = $this->em->getRepository(User::class)->findAll();
-        if ($users) {
-            $output->writeln(count($users) . 'user(s) in DB. No creation allowed');
-            return Command::FAILURE;
+            if ($typesInDatabase !== []) {
+                $output->writeln('There are already Pokemon Types in the database');
+                return Command::FAILURE;
+            }
+
+            $typesEntity = new Types();
+            $typesEntity->setName($value['name']);
+            $typesEntity->setUrl($value['url']);
+
+            $output->writeln($value['name'] . ' is imported !');
+
+            $this->em->persist($typesEntity);
         }
 
-        $user = new User();
-        $user->setEmail($login);
-        $user->setPassword($password);
-//        $user->setFirstname($firstname);
-//        $user->setLastname($lastname);
-
-        $hash = $this->hasher->hashPassword($user, $user->getPassword());
-        $user->setPassword($hash);
-
-        $this->em->persist($user);
         $this->em->flush();
-
-        $output->writeln('Success !');
-
+        $output->writeln('Success ! All Pokemon Types are imported');
         return Command::SUCCESS;
     }
+
 }
