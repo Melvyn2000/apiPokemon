@@ -27,4 +27,3 @@ php bin/console doctrine:migrations:migrate
 - `command:add-ability` : __Pour importer les données "abilities" des Pokémons__
 - `command:add-type` : __Pour importer les données "types" des Pokémons__
 - `command:add-pokemon` : __Pour importer les Pokémons__
-2) Il faut égale
